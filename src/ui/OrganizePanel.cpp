@@ -2,9 +2,18 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
-#include <QGroupBox>
 #include <QLabel>
 #include <QHeaderView>
+#include <QScrollArea>
+#include <QFrame>
+
+static QFrame* createCardFrame(QWidget *parent)
+{
+    auto *card = new QFrame(parent);
+    card->setObjectName("cardFrame");
+    card->setStyleSheet("QFrame#cardFrame { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }");
+    return card;
+}
 
 OrganizePanel::OrganizePanel(QWidget *parent)
     : QWidget(parent)
@@ -14,41 +23,64 @@ OrganizePanel::OrganizePanel(QWidget *parent)
 
 void OrganizePanel::setupUi()
 {
-    auto *mainLayout = new QVBoxLayout(this);
-    mainLayout->setContentsMargins(6, 6, 6, 6);
-    mainLayout->setSpacing(12);
+    auto *rootLayout = new QVBoxLayout(this);
+    rootLayout->setContentsMargins(0, 0, 0, 0);
 
-    auto *modeGroup = new QGroupBox("Organize & Move Mode", this);
-    auto *modeLayout = new QVBoxLayout(modeGroup);
+    auto *scrollArea = new QScrollArea(this);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setStyleSheet("QScrollArea { background-color: #f8fafc; border: none; } QWidget#orgScrollContainer { background-color: #f8fafc; }");
 
-    m_radioCategory = new QRadioButton("By File Category (Images, Documents, Videos, Audio, Archives, Code)", modeGroup);
+    auto *container = new QWidget(scrollArea);
+    container->setObjectName("orgScrollContainer");
+    auto *layout = new QVBoxLayout(container);
+    layout->setContentsMargins(12, 12, 12, 12);
+    layout->setSpacing(12);
+
+    // Card 1: Mode Selection
+    auto *modeCard = createCardFrame(container);
+    auto *modeLayout = new QVBoxLayout(modeCard);
+    modeLayout->setContentsMargins(14, 14, 14, 14);
+    modeLayout->setSpacing(12);
+
+    auto *modeHeader = new QLabel("Select Organization Method", modeCard);
+    modeHeader->setStyleSheet("font-weight: 600; font-size: 13.5px; color: #0f172a;");
+    modeLayout->addWidget(modeHeader);
+
+    m_radioCategory = new QRadioButton("By File Type (Pictures, Documents, Videos, Audio, Archives, Code)", modeCard);
     m_radioCategory->setChecked(true);
-
-    m_radioDate = new QRadioButton("By Modification Date", modeGroup);
-    m_radioSize = new QRadioButton("By File Size (<10MB, 10-100MB, 100MB-1GB, >1GB)", modeGroup);
-    m_radioCustom = new QRadioButton("Custom Rule Matching", modeGroup);
-
     modeLayout->addWidget(m_radioCategory);
+
+    m_radioDate = new QRadioButton("By File Modification Date", modeCard);
     modeLayout->addWidget(m_radioDate);
 
-    // Date grouping options
-    auto *dateGroupSub = new QWidget(modeGroup);
+    auto *dateGroupSub = new QWidget(modeCard);
     auto *dateLayout = new QHBoxLayout(dateGroupSub);
-    dateLayout->setContentsMargins(20, 0, 0, 0);
-    dateLayout->addWidget(new QLabel("Grouping format:", dateGroupSub));
+    dateLayout->setContentsMargins(24, 0, 0, 0);
+    dateLayout->addWidget(new QLabel("Folder structure:", dateGroupSub));
     m_dateGroupCombo = new QComboBox(dateGroupSub);
-    m_dateGroupCombo->addItems({"Year-Month (e.g. 2026-09)", "Year Only (e.g. 2026)", "Year/Month Subfolders (e.g. 2026/09)"});
+    m_dateGroupCombo->addItems({"Year-Month (e.g. 2026-09)", "Year Only (e.g. 2026)", "Year/Month (e.g. 2026/09)"});
     dateLayout->addWidget(m_dateGroupCombo);
     dateLayout->addStretch();
     modeLayout->addWidget(dateGroupSub);
 
+    m_radioSize = new QRadioButton("By File Size (<10 MB, 10-100 MB, 100 MB-1 GB, >1 GB)", modeCard);
     modeLayout->addWidget(m_radioSize);
-    modeLayout->addWidget(m_radioCustom);
-    mainLayout->addWidget(modeGroup);
 
-    // Custom Rules Box
-    m_customRuleWidget = new QGroupBox("Custom Rules Builder", this);
+    m_radioCustom = new QRadioButton("Custom Rule Matching", modeCard);
+    modeLayout->addWidget(m_radioCustom);
+
+    layout->addWidget(modeCard);
+
+    // Card 2: Custom Rules
+    m_customRuleWidget = createCardFrame(container);
     auto *customLayout = new QVBoxLayout(m_customRuleWidget);
+    customLayout->setContentsMargins(14, 14, 14, 14);
+    customLayout->setSpacing(10);
+
+    auto *customHeader = new QLabel("Custom Rule Builder", m_customRuleWidget);
+    customHeader->setStyleSheet("font-weight: 600; font-size: 13.5px; color: #0f172a;");
+    customLayout->addWidget(customHeader);
 
     auto *inputRow = new QHBoxLayout();
     m_ruleTypeCombo = new QComboBox(m_customRuleWidget);
@@ -56,13 +88,12 @@ void OrganizePanel::setupUi()
     m_rulePatternEdit = new QLineEdit(m_customRuleWidget);
     m_rulePatternEdit->setPlaceholderText("e.g. pdf,doc or invoice");
     m_ruleTargetFolderEdit = new QLineEdit(m_customRuleWidget);
-    m_ruleTargetFolderEdit->setPlaceholderText("Target subfolder name (e.g. Invoices)");
+    m_ruleTargetFolderEdit->setPlaceholderText("Target folder name");
     auto *addRuleBtn = new QPushButton("Add Rule", m_customRuleWidget);
+    addRuleBtn->setObjectName("accentButton");
 
-    inputRow->addWidget(new QLabel("If:"));
     inputRow->addWidget(m_ruleTypeCombo);
     inputRow->addWidget(m_rulePatternEdit);
-    inputRow->addWidget(new QLabel("Move to:"));
     inputRow->addWidget(m_ruleTargetFolderEdit);
     inputRow->addWidget(addRuleBtn);
     customLayout->addLayout(inputRow);
@@ -70,6 +101,7 @@ void OrganizePanel::setupUi()
     m_rulesTable = new QTableWidget(0, 3, m_customRuleWidget);
     m_rulesTable->setHorizontalHeaderLabels({"Condition", "Pattern", "Destination Folder"});
     m_rulesTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_rulesTable->setMinimumHeight(140);
     customLayout->addWidget(m_rulesTable);
 
     auto *ruleActionRow = new QHBoxLayout();
@@ -78,8 +110,11 @@ void OrganizePanel::setupUi()
     ruleActionRow->addWidget(removeRuleBtn);
     customLayout->addLayout(ruleActionRow);
 
-    mainLayout->addWidget(m_customRuleWidget);
-    mainLayout->addStretch();
+    layout->addWidget(m_customRuleWidget);
+    layout->addStretch();
+
+    scrollArea->setWidget(container);
+    rootLayout->addWidget(scrollArea);
 
     // Connect signals
     connect(m_radioCategory, &QRadioButton::toggled, this, &OrganizePanel::onInputChanged);

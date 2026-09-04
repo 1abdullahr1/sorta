@@ -9,6 +9,7 @@
 #include <QProgressBar>
 #include <QLabel>
 #include <QTabWidget>
+#include <QStackedWidget>
 #include <QSortFilterProxyModel>
 
 #include "FileTableModel.h"
@@ -51,14 +52,12 @@ private:
     void setupUi();
     void updateStatusBarCounts();
 
-    // Top Bar
-    QLineEdit *m_folderEdit;
+    // Top Header & Path Banner
+    QLabel *m_folderPathLabel;
     QCheckBox *m_recursiveCheck;
     QPushButton *m_selectFolderBtn;
     QPushButton *m_scanBtn;
     QPushButton *m_clearBtn;
-
-    // Action Buttons
     QPushButton *m_undoBtn;
     QPushButton *m_historyBtn;
     QPushButton *m_aboutBtn;
@@ -68,14 +67,22 @@ private:
     RenamePanel *m_renamePanel;
     OrganizePanel *m_organizePanel;
 
-    // Filter and Table
+    // Right Area Stacked Widget (Empty state vs Table)
+    QStackedWidget *m_rightStack;
+    QWidget *m_emptyStateWidget;
+    QWidget *m_tableContainerWidget;
+
+    // Table & Filter
     QLineEdit *m_filterEdit;
+    QLabel *m_tableCountLabel;
     QTableView *m_tableView;
     FileTableModel *m_tableModel;
     QSortFilterProxyModel *m_proxyModel;
 
     // Bottom Action Bar
-    QLabel *m_summaryLabel;
+    QLabel *m_summaryTotalPill;
+    QLabel *m_summaryPendingPill;
+    QLabel *m_summaryConflictPill;
     QPushButton *m_applyBtn;
     QProgressBar *m_progressBar;
 

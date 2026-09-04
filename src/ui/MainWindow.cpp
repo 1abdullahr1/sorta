@@ -16,6 +16,15 @@
 #include <QDir>
 #include <QFile>
 #include <QUuid>
+#include <QFrame>
+
+static QFrame* createCard(QWidget *parent)
+{
+    auto *card = new QFrame(parent);
+    card->setObjectName("cardFrame");
+    card->setStyleSheet("QFrame#cardFrame { background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; }");
+    return card;
+}
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
@@ -24,7 +33,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     setWindowTitle("Sorta — High-Speed Bulk File Renamer & Organizer");
     setWindowIcon(QIcon(":/app.png"));
-    resize(1180, 780);
+    resize(1240, 820);
     setAcceptDrops(true);
 
     setupUi();
@@ -32,7 +41,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Scanner connections
     connect(m_scanner, &FileScanner::scanStarted, this, [this]() {
         m_progressBar->setVisible(true);
-        m_progressBar->setRange(0, 0); // Indeterminate
+        m_progressBar->setRange(0, 0);
         statusBar()->showMessage("Scanning folder...");
         m_scanBtn->setText("Cancel");
     });
@@ -44,7 +53,7 @@ MainWindow::MainWindow(QWidget *parent)
         statusBar()->showMessage("Scanning canceled.");
         m_scanBtn->setText("Rescan");
     });
-    connect(m_scanner, &FileScanner::progressUpdated, this, [this](int count, const QString &status) {
+    connect(m_scanner, &FileScanner::progressUpdated, this, [this](int, const QString &status) {
         statusBar()->showMessage(status);
     });
 
@@ -64,75 +73,165 @@ MainWindow::~MainWindow()
 void MainWindow::setupUi()
 {
     auto *centralWidget = new QWidget(this);
+    centralWidget->setObjectName("centralWidget");
     setCentralWidget(centralWidget);
 
     auto *rootLayout = new QVBoxLayout(centralWidget);
-    rootLayout->setContentsMargins(12, 12, 12, 8);
-    rootLayout->setSpacing(10);
+    rootLayout->setContentsMargins(16, 14, 16, 12);
+    rootLayout->setSpacing(12);
 
-    // --- TOP BAR: Folder Picker & Actions ---
-    auto *topBarLayout = new QHBoxLayout();
-    topBarLayout->setSpacing(8);
+    // =========================================================================
+    // 1. TOP HEADER & ACTIONS
+    // =========================================================================
+    auto *headerCard = createCard(centralWidget);
+    auto *headerLayout = new QHBoxLayout(headerCard);
+    headerLayout->setContentsMargins(14, 10, 14, 10);
+    headerLayout->setSpacing(12);
 
-    m_selectFolderBtn = new QPushButton("Select Folder", this);
-    m_selectFolderBtn->setObjectName("accentButton");
+    // App Branding (Icon + Title)
+    auto *brandLayout = new QHBoxLayout();
+    brandLayout->setSpacing(10);
+    auto *logoLabel = new QLabel(headerCard);
+    QPixmap icon(":/app.png");
+    if (!icon.isNull()) {
+        logoLabel->setPixmap(icon.scaled(32, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+    }
+    brandLayout->addWidget(logoLabel);
 
-    m_folderEdit = new QLineEdit(this);
-    m_folderEdit->setPlaceholderText("Select a folder or drag-and-drop files / folders here...");
+    auto *titleLayout = new QVBoxLayout();
+    titleLayout->setSpacing(0);
+    auto *titleText = new QLabel("Sorta", headerCard);
+    titleText->setStyleSheet("font-size: 16px; font-weight: 700; color: #0f172a;");
+    auto *subtitleText = new QLabel("Bulk File Renamer & Organizer", headerCard);
+    subtitleText->setStyleSheet("font-size: 11px; color: #64748b;");
+    titleLayout->addWidget(titleText);
+    titleLayout->addWidget(subtitleText);
+    brandLayout->addLayout(titleLayout);
+    headerLayout->addLayout(brandLayout);
 
-    m_recursiveCheck = new QCheckBox("Include Subfolders", this);
+    headerLayout->addStretch();
 
-    m_scanBtn = new QPushButton("Rescan", this);
-    m_clearBtn = new QPushButton("Clear List", this);
+    // Action buttons
+    m_selectFolderBtn = new QPushButton("Select Folder", headerCard);
+    m_selectFolderBtn->setObjectName("primaryButton");
 
-    m_undoBtn = new QPushButton("Undo Last", this);
+    m_scanBtn = new QPushButton("Rescan", headerCard);
+    m_scanBtn->setEnabled(false);
+
+    m_clearBtn = new QPushButton("Clear List", headerCard);
+    m_clearBtn->setEnabled(false);
+
+    m_undoBtn = new QPushButton("Undo Last", headerCard);
     m_undoBtn->setEnabled(m_history->canUndo());
 
-    m_historyBtn = new QPushButton("History", this);
-    m_aboutBtn = new QPushButton("About", this);
+    m_historyBtn = new QPushButton("History", headerCard);
+    m_aboutBtn = new QPushButton("About", headerCard);
 
-    topBarLayout->addWidget(m_selectFolderBtn);
-    topBarLayout->addWidget(m_folderEdit, 1);
-    topBarLayout->addWidget(m_recursiveCheck);
-    topBarLayout->addWidget(m_scanBtn);
-    topBarLayout->addWidget(m_clearBtn);
-    topBarLayout->addWidget(m_undoBtn);
-    topBarLayout->addWidget(m_historyBtn);
-    topBarLayout->addWidget(m_aboutBtn);
+    headerLayout->addWidget(m_selectFolderBtn);
+    headerLayout->addWidget(m_scanBtn);
+    headerLayout->addWidget(m_clearBtn);
+    headerLayout->addWidget(m_undoBtn);
+    headerLayout->addWidget(m_historyBtn);
+    headerLayout->addWidget(m_aboutBtn);
 
-    rootLayout->addLayout(topBarLayout);
+    rootLayout->addWidget(headerCard);
 
-    // --- MAIN SPLITTER: Left controls (Tabs), Right table ---
-    auto *splitter = new QSplitter(Qt::Horizontal, this);
+    // =========================================================================
+    // 2. FOLDER LOCATION BANNER
+    // =========================================================================
+    auto *bannerCard = createCard(centralWidget);
+    auto *bannerLayout = new QHBoxLayout(bannerCard);
+    bannerLayout->setContentsMargins(14, 8, 14, 8);
+    bannerLayout->setSpacing(10);
 
-    // Left: Control Tabs
+    auto *folderIconLabel = new QLabel("📁", bannerCard);
+    folderIconLabel->setStyleSheet("font-size: 14px;");
+    bannerLayout->addWidget(folderIconLabel);
+
+    m_folderPathLabel = new QLabel("No folder selected. Choose a folder or drag files into the window.", bannerCard);
+    m_folderPathLabel->setStyleSheet("font-size: 12.5px; color: #475569; font-weight: 500;");
+    bannerLayout->addWidget(m_folderPathLabel, 1);
+
+    m_recursiveCheck = new QCheckBox("Include Subfolders", bannerCard);
+    bannerLayout->addWidget(m_recursiveCheck);
+
+    rootLayout->addWidget(bannerCard);
+
+    // =========================================================================
+    // 3. MAIN SPLITTER (Left: Rules Tabs | Right: Table / Empty State)
+    // =========================================================================
+    auto *splitter = new QSplitter(Qt::Horizontal, centralWidget);
+    splitter->setChildrenCollapsible(false);
+
+    // Left Panel: Tabs
     m_actionTabs = new QTabWidget(splitter);
     m_renamePanel = new RenamePanel(m_actionTabs);
     m_organizePanel = new OrganizePanel(m_actionTabs);
 
     m_actionTabs->addTab(m_renamePanel, "Rename Rules");
     m_actionTabs->addTab(m_organizePanel, "Organize into Folders");
-    m_actionTabs->setMinimumWidth(380);
-    m_actionTabs->setMaximumWidth(480);
+    m_actionTabs->setMinimumWidth(460);
     splitter->addWidget(m_actionTabs);
 
-    // Right: Table View with Search/Filter
-    auto *rightWidget = new QWidget(splitter);
-    auto *rightLayout = new QVBoxLayout(rightWidget);
-    rightLayout->setContentsMargins(0, 0, 0, 0);
-    rightLayout->setSpacing(6);
+    // Right Panel: Stacked Widget (Page 0 = Empty State, Page 1 = Table View)
+    m_rightStack = new QStackedWidget(splitter);
 
-    // Table filter input
-    auto *filterLayout = new QHBoxLayout();
-    filterLayout->addWidget(new QLabel("Quick Search:", rightWidget));
-    m_filterEdit = new QLineEdit(rightWidget);
+    // Page 0: Empty State
+    m_emptyStateWidget = createCard(m_rightStack);
+    auto *emptyLayout = new QVBoxLayout(m_emptyStateWidget);
+    emptyLayout->setContentsMargins(40, 60, 40, 60);
+    emptyLayout->setSpacing(14);
+    emptyLayout->setAlignment(Qt::AlignCenter);
+
+    auto *bigFolderIcon = new QLabel("📂", m_emptyStateWidget);
+    bigFolderIcon->setStyleSheet("font-size: 54px; color: #94a3b8;");
+    bigFolderIcon->setAlignment(Qt::AlignCenter);
+    emptyLayout->addWidget(bigFolderIcon);
+
+    auto *emptyTitle = new QLabel("No Files Loaded", m_emptyStateWidget);
+    emptyTitle->setStyleSheet("font-size: 18px; font-weight: 700; color: #0f172a;");
+    emptyTitle->setAlignment(Qt::AlignCenter);
+    emptyLayout->addWidget(emptyTitle);
+
+    auto *emptyDesc = new QLabel("Drag and drop any folder or group of files here,<br>or click the button below to browse.", m_emptyStateWidget);
+    emptyDesc->setStyleSheet("font-size: 13px; color: #64748b; line-height: 1.5;");
+    emptyDesc->setAlignment(Qt::AlignCenter);
+    emptyLayout->addWidget(emptyDesc);
+
+    auto *emptyBrowseBtn = new QPushButton("Choose Folder to Organize", m_emptyStateWidget);
+    emptyBrowseBtn->setObjectName("primaryButton");
+    emptyBrowseBtn->setFixedWidth(240);
+    emptyBrowseBtn->setFixedHeight(38);
+    emptyLayout->addWidget(emptyBrowseBtn, 0, Qt::AlignCenter);
+
+    m_rightStack->addWidget(m_emptyStateWidget);
+
+    // Page 1: Table Container
+    m_tableContainerWidget = createCard(m_rightStack);
+    auto *tableContainerLayout = new QVBoxLayout(m_tableContainerWidget);
+    tableContainerLayout->setContentsMargins(12, 12, 12, 12);
+    tableContainerLayout->setSpacing(10);
+
+    // Search and Table Header
+    auto *tableTopLayout = new QHBoxLayout();
+    tableTopLayout->setSpacing(8);
+
+    auto *searchLabel = new QLabel("🔍", m_tableContainerWidget);
+    tableTopLayout->addWidget(searchLabel);
+
+    m_filterEdit = new QLineEdit(m_tableContainerWidget);
     m_filterEdit->setPlaceholderText("Filter files by name or extension...");
     m_filterEdit->setClearButtonEnabled(true);
-    filterLayout->addWidget(m_filterEdit, 1);
-    rightLayout->addLayout(filterLayout);
+    tableTopLayout->addWidget(m_filterEdit, 1);
 
-    // Table setup
-    m_tableView = new QTableView(rightWidget);
+    m_tableCountLabel = new QLabel("0 Files", m_tableContainerWidget);
+    m_tableCountLabel->setObjectName("statusPillTotal");
+    tableTopLayout->addWidget(m_tableCountLabel);
+
+    tableContainerLayout->addLayout(tableTopLayout);
+
+    // Table
+    m_tableView = new QTableView(m_tableContainerWidget);
     m_tableModel = new FileTableModel(this);
     m_proxyModel = new QSortFilterProxyModel(this);
     m_proxyModel->setSourceModel(m_tableModel);
@@ -143,6 +242,9 @@ void MainWindow::setupUi()
     m_tableView->setSortingEnabled(true);
     m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_tableView->setAlternatingRowColors(true);
+    m_tableView->verticalHeader()->setDefaultSectionSize(34);
+    m_tableView->verticalHeader()->setVisible(false);
+
     m_tableView->horizontalHeader()->setSectionResizeMode(FileTableModel::ColStatus, QHeaderView::ResizeToContents);
     m_tableView->horizontalHeader()->setSectionResizeMode(FileTableModel::ColOriginalName, QHeaderView::Stretch);
     m_tableView->horizontalHeader()->setSectionResizeMode(FileTableModel::ColNewName, QHeaderView::Stretch);
@@ -151,39 +253,61 @@ void MainWindow::setupUi()
     m_tableView->horizontalHeader()->setSectionResizeMode(FileTableModel::ColDate, QHeaderView::ResizeToContents);
     m_tableView->horizontalHeader()->setSectionResizeMode(FileTableModel::ColDestination, QHeaderView::Stretch);
 
-    rightLayout->addWidget(m_tableView);
-    splitter->addWidget(rightWidget);
+    tableContainerLayout->addWidget(m_tableView);
+    m_rightStack->addWidget(m_tableContainerWidget);
+
+    m_rightStack->setCurrentIndex(0); // Start at Empty State
+    splitter->addWidget(m_rightStack);
 
     splitter->setStretchFactor(0, 0);
     splitter->setStretchFactor(1, 1);
+    splitter->setSizes({460, 780});
     rootLayout->addWidget(splitter, 1);
 
-    // --- BOTTOM ACTION BAR ---
-    auto *bottomLayout = new QHBoxLayout();
-    m_summaryLabel = new QLabel("No files loaded.", this);
-    m_summaryLabel->setStyleSheet("font-weight: 600; color: #334155;");
+    // =========================================================================
+    // 4. BOTTOM ACTION BAR
+    // =========================================================================
+    auto *bottomCard = createCard(centralWidget);
+    auto *bottomLayout = new QHBoxLayout(bottomCard);
+    bottomLayout->setContentsMargins(14, 10, 14, 10);
+    bottomLayout->setSpacing(10);
 
-    m_progressBar = new QProgressBar(this);
-    m_progressBar->setVisible(false);
-    m_progressBar->setFixedWidth(200);
+    m_summaryTotalPill = new QLabel("0 Files Loaded", bottomCard);
+    m_summaryTotalPill->setObjectName("statusPillTotal");
 
-    m_applyBtn = new QPushButton("Apply Changes", this);
-    m_applyBtn->setObjectName("primaryButton");
-    m_applyBtn->setMinimumWidth(150);
-    m_applyBtn->setEnabled(false);
+    m_summaryPendingPill = new QLabel("0 Changes Pending", bottomCard);
+    m_summaryPendingPill->setObjectName("statusPillPending");
 
-    bottomLayout->addWidget(m_summaryLabel);
+    m_summaryConflictPill = new QLabel("0 Conflicts", bottomCard);
+    m_summaryConflictPill->setObjectName("statusPillConflict");
+    m_summaryConflictPill->setVisible(false);
+
+    bottomLayout->addWidget(m_summaryTotalPill);
+    bottomLayout->addWidget(m_summaryPendingPill);
+    bottomLayout->addWidget(m_summaryConflictPill);
+
     bottomLayout->addStretch();
+
+    m_progressBar = new QProgressBar(bottomCard);
+    m_progressBar->setVisible(false);
+    m_progressBar->setFixedWidth(220);
     bottomLayout->addWidget(m_progressBar);
+
+    m_applyBtn = new QPushButton("Apply Changes", bottomCard);
+    m_applyBtn->setObjectName("primaryButton");
+    m_applyBtn->setMinimumWidth(180);
+    m_applyBtn->setFixedHeight(38);
+    m_applyBtn->setEnabled(false);
     bottomLayout->addWidget(m_applyBtn);
 
-    rootLayout->addLayout(bottomLayout);
+    rootLayout->addWidget(bottomCard);
 
     // Status bar
-    statusBar()->showMessage("Ready. Select a folder or drag and drop files to get started.");
+    statusBar()->showMessage("Ready. Select a folder or drag files to get started.");
 
     // Signal connections
     connect(m_selectFolderBtn, &QPushButton::clicked, this, &MainWindow::chooseFolder);
+    connect(emptyBrowseBtn, &QPushButton::clicked, this, &MainWindow::chooseFolder);
     connect(m_scanBtn, &QPushButton::clicked, this, &MainWindow::startScan);
     connect(m_clearBtn, &QPushButton::clicked, this, &MainWindow::clearList);
     connect(m_undoBtn, &QPushButton::clicked, this, &MainWindow::executeUndoLast);
@@ -203,7 +327,7 @@ void MainWindow::chooseFolder()
     QString dir = QFileDialog::getExistingDirectory(this, "Select Folder to Organize", m_currentFolder);
     if (!dir.isEmpty()) {
         m_currentFolder = dir;
-        m_folderEdit->setText(dir);
+        m_folderPathLabel->setText(dir);
         startScan();
     }
 }
@@ -215,20 +339,22 @@ void MainWindow::startScan()
         return;
     }
 
-    QString path = m_folderEdit->text().trimmed();
-    if (path.isEmpty()) {
+    if (m_currentFolder.isEmpty()) {
         chooseFolder();
         return;
     }
 
-    if (!QDir(path).exists()) {
+    if (!QDir(m_currentFolder).exists()) {
         QMessageBox::warning(this, "Folder Not Found", "The specified folder does not exist.");
         return;
     }
 
-    m_currentFolder = path;
     m_tableModel->clear();
-    m_scanner->setDirectory(path, m_recursiveCheck->isChecked());
+    m_rightStack->setCurrentIndex(1); // Switch to table view
+    m_scanBtn->setEnabled(true);
+    m_clearBtn->setEnabled(true);
+
+    m_scanner->setDirectory(m_currentFolder, m_recursiveCheck->isChecked());
     m_scanner->start();
 }
 
@@ -260,8 +386,11 @@ void MainWindow::clearList()
         m_scanner->wait();
     }
     m_tableModel->clear();
-    m_folderEdit->clear();
     m_currentFolder.clear();
+    m_folderPathLabel->setText("No folder selected. Choose a folder or drag files into the window.");
+    m_rightStack->setCurrentIndex(0); // Switch back to Empty State
+    m_scanBtn->setEnabled(false);
+    m_clearBtn->setEnabled(false);
     updateStatusBarCounts();
     m_applyBtn->setEnabled(false);
     statusBar()->showMessage("List cleared.");
@@ -290,26 +419,20 @@ void MainWindow::recomputePreview()
     }
 
     if (m_actionTabs->currentIndex() == 0) {
-        // Rename mode
         RenameOptions opt = m_renamePanel->getOptions();
         RenameEngine::applyRules(items, opt);
-        // Reset destination to original directory
         for (FileItem &it : items) {
             it.newDirectoryPath = it.directoryPath;
         }
     } else {
-        // Organize mode
         OrganizeOptions opt = m_organizePanel->getOptions();
         OrganizeEngine::applyOrganization(items, opt, m_currentFolder);
-        // Reset newFileName to original fileName
         for (FileItem &it : items) {
             it.newFileName = it.fileName;
         }
     }
 
-    // Safety and conflict checking
     m_lastReport = ConflictDetector::validate(items);
-
     m_tableModel->updatePreview();
     updateStatusBarCounts();
 }
@@ -320,15 +443,18 @@ void MainWindow::updateStatusBarCounts()
     int changed = m_lastReport.changedCount;
     int conflicts = m_lastReport.conflictCount + m_lastReport.existingCollisionCount + m_lastReport.invalidNameCount;
 
-    QString summary = QString("Total: %1 files | To Process: %2").arg(total).arg(changed);
+    m_summaryTotalPill->setText(QString("%1 Files Loaded").arg(total));
+    m_summaryPendingPill->setText(QString("%1 Changes Pending").arg(changed));
+    m_tableCountLabel->setText(QString("%1 Files").arg(total));
+
     if (conflicts > 0) {
-        summary += QString(" | <span style='color:#dc2626;'><b>Conflicts: %1</b></span>").arg(conflicts);
+        m_summaryConflictPill->setText(QString("%1 Conflicts Detected").arg(conflicts));
+        m_summaryConflictPill->setVisible(true);
         m_applyBtn->setEnabled(false);
     } else {
+        m_summaryConflictPill->setVisible(false);
         m_applyBtn->setEnabled(changed > 0);
     }
-
-    m_summaryLabel->setText(summary);
 }
 
 void MainWindow::executeApply()
@@ -375,7 +501,6 @@ void MainWindow::executeApply()
         QString targetPath = item.targetFullPath();
         QString targetDir = item.newDirectoryPath.isEmpty() ? item.directoryPath : item.newDirectoryPath;
 
-        // Ensure target directory exists
         QDir dir;
         if (!dir.exists(targetDir)) {
             if (!dir.mkpath(targetDir)) {
@@ -432,7 +557,6 @@ void MainWindow::executeUndoLast()
     QString errorMsg;
     if (m_history->undoLast(errorMsg)) {
         QMessageBox::information(this, "Undo Successful", "Last operation was restored successfully.");
-        // Rescan folder to reflect changes
         if (!m_currentFolder.isEmpty()) {
             startScan();
         }
@@ -445,7 +569,6 @@ void MainWindow::showHistoryDialog()
 {
     HistoryDialog dlg(m_history, this);
     dlg.exec();
-    // After history dialog, can rescan if an undo occurred
     if (!m_currentFolder.isEmpty()) {
         startScan();
     }
@@ -479,15 +602,18 @@ void MainWindow::dropEvent(QDropEvent *event)
         paths.append(url.toLocalFile());
     }
 
+    m_scanBtn->setEnabled(true);
+    m_clearBtn->setEnabled(true);
+    m_rightStack->setCurrentIndex(1); // Show table
+
     if (paths.size() == 1 && QFileInfo(paths.first()).isDir()) {
         m_currentFolder = paths.first();
-        m_folderEdit->setText(m_currentFolder);
+        m_folderPathLabel->setText(m_currentFolder);
         startScan();
     } else {
-        // Direct files / folders list
         m_tableModel->clear();
         m_currentFolder = QFileInfo(paths.first()).absolutePath();
-        m_folderEdit->setText(m_currentFolder);
+        m_folderPathLabel->setText(m_currentFolder);
         m_scanner->setDirectFiles(paths);
         m_scanner->start();
     }

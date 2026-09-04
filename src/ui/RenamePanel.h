@@ -6,8 +6,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QSpinBox>
-#include <QRadioButton>
-#include <QButtonGroup>
+#include <QPushButton>
 #include "RenameEngine.h"
 
 class RenamePanel : public QWidget {
@@ -24,58 +23,59 @@ signals:
 private slots:
     void onInputChanged();
     void resetAllFields();
+    void applyQuickPreset(int presetIndex);
     void insertPatternTag(const QString &tag);
 
 private:
     void setupUi();
 
-    // Mode selection
-    QRadioButton *m_radioStandardMode;
-    QRadioButton *m_radioPatternMode;
-
-    // Pattern mode controls
-    QWidget *m_patternWidget;
-    QLineEdit *m_patternEdit;
-
-    // Standard mode controls
-    QWidget *m_standardWidget;
-
-    // Prefix & Suffix
+    // Section 1: Prefix & Suffix
+    QCheckBox *m_enablePrefixSuffixCheck;
+    QWidget *m_prefixSuffixBody;
     QLineEdit *m_prefixEdit;
     QLineEdit *m_suffixEdit;
 
-    // Find & Replace
+    // Section 2: Find & Replace
     QCheckBox *m_enableReplaceCheck;
+    QWidget *m_replaceBody;
     QLineEdit *m_findEdit;
     QLineEdit *m_replaceEdit;
     QCheckBox *m_matchCaseCheck;
     QCheckBox *m_regexCheck;
 
-    // Remove text
-    QCheckBox *m_enableRemoveCheck;
-    QLineEdit *m_removeEdit;
-
-    // Case change
-    QComboBox *m_caseCombo;
-
-    // Numbering
+    // Section 3: Sequential Numbering
     QCheckBox *m_enableNumberCheck;
+    QWidget *m_numberBody;
     QComboBox *m_numberPosCombo;
     QSpinBox *m_numberStartSpin;
     QSpinBox *m_numberStepSpin;
-    QSpinBox *m_numberPaddingSpin;
+    QComboBox *m_numberPaddingCombo;
     QLineEdit *m_numberSeparatorEdit;
 
-    // Date
+    // Section 4: Remove Text
+    QCheckBox *m_enableRemoveCheck;
+    QWidget *m_removeBody;
+    QLineEdit *m_removeEdit;
+
+    // Section 5: Case & Timestamps
+    QCheckBox *m_enableCaseDateCheck;
+    QWidget *m_caseDateBody;
+    QComboBox *m_caseCombo;
     QComboBox *m_datePosCombo;
     QComboBox *m_dateSourceCombo;
     QComboBox *m_dateFormatCombo;
 
-    // Extension
-    QCheckBox *m_changeExtCheck;
+    // Section 6: File Extension
+    QCheckBox *m_enableExtCheck;
+    QWidget *m_extBody;
     QLineEdit *m_newExtEdit;
     QCheckBox *m_lowerExtCheck;
     QCheckBox *m_upperExtCheck;
+
+    // Section 7: Custom Template Pattern
+    QCheckBox *m_enablePatternCheck;
+    QWidget *m_patternBody;
+    QLineEdit *m_patternEdit;
 };
 
 #endif // RENAMEPANEL_H
