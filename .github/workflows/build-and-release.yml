@@ -1,0 +1,122 @@
+name: Build and Package Sorta (Windows)
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Publish GitHub Release'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Package Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.7.2'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtbase'
+
+      - name: Install Ninja
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install ninja
+          }
+          ninja --version
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="${{ env.Qt6_DIR }}"
+
+      - name: Build Sorta (Release)
+        run: |
+          cmake --build build --config Release
+
+      - name: Stage Application & Run windeployqt
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          
+          $exePath = if (Test-Path "build\Release\Sorta.exe") { "build\Release\Sorta.exe" } else { "build\Sorta.exe" }
+          Write-Host "Found executable at: $exePath"
+          Copy-Item $exePath dist\Sorta.exe
+          Copy-Item LICENSE dist\LICENSE.txt
+          
+          # Run windeployqt to bundle all required Qt runtime DLLs and plugins
+          windeployqt --release --compiler-runtime --no-translations --no-system-d3d-compiler dist\Sorta.exe
+          
+          Write-Host "Staged dist directory contents:"
+          Get-ChildItem -Path dist
+
+      - name: Build Windows Installer with Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            Write-Error "Inno Setup compiler not found at $iscc"
+            exit 1
+          }
+          $distPath = (Resolve-Path dist).Path
+          & $iscc "/DSourceDir=$distPath" installer\sorta_installer.iss
+          
+          Write-Host "Generated installer in installer\Output:"
+          Get-ChildItem -Path installer\Output
+
+      - name: Create Portable Standalone ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist\* -DestinationPath Sorta_v1.0.0_Portable.zip -CompressionLevel Optimal
+          Get-Item Sorta_v1.0.0_Portable.zip
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sorta-Windows-Installer
+          path: installer/Output/Sorta_Setup_v1.0.0.exe
+          retention-days: 30
+
+      - name: Upload Portable ZIP Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sorta-Windows-Portable
+          path: Sorta_v1.0.0_Portable.zip
+          retention-days: 30
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || (github.event_name == 'workflow_dispatch' && inputs.create_release == true)
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            installer/Output/Sorta_Setup_v1.0.0.exe
+            Sorta_v1.0.0_Portable.zip
+          name: Sorta Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
